@@ -1,0 +1,1939 @@
+------------------------
+TCP - Character Stream
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2208 (hỗ trợ thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác với server sử dụng các luồng byte (BufferedWriter/BufferedReader) theo kịch bản sau:
+
+a. Gửi một chuỗi gồm mã sinh viên và mã câu hỏi với định dạng studentCode;qCode.
+
+Ví dụ: B15DCCN999;EC4F899B
+
+b. Nhận một chuỗi ngẫu nhiên là danh sách các một số tên miền từ server
+
+Ví dụ: giHgWHwkLf0Rd0.io, I7jpjuRw13D.io, wXf6GP3KP.vn, MdpIzhxDVtTFTF.edu, TUHuMfn25chmw.vn, HHjE9.com, 4hJld2m2yiweto.vn, y2L4SQwH.vn, s2aUrZGdzS.com, 4hXfJe9giAA.edu
+
+c. Tìm kiếm các tên miền .edu và gửi lên server
+
+Ví dụ: MdpIzhxDVtTFTF.edu, 4hXfJe9giAA.edu
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+package tcp_dbptit;
+
+import java.io.*;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+
+public class TCP_dbptit {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242";
+        final int SERVER_PORT = 2208;
+
+        final String STUDENT_CODE = "B23DCCN194";
+        final String Q_CODE = "th2WIM75";
+
+        System.out.println("Đang kết nối đến server...");
+
+        try (
+            Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(socket.getInputStream())
+            );
+
+            BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(socket.getOutputStream())
+            )
+        ) {
+            socket.setSoTimeout(5000);
+
+            System.out.println("Đã kết nối đến server.");
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            writer.write(request);
+            writer.newLine();
+            writer.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // b. Nhận danh sách tên miền
+            String domainString = reader.readLine();
+
+            if (domainString == null) {
+                System.out.println("Server đã đóng kết nối và không gửi dữ liệu.");
+                return;
+            }
+
+            System.out.println("Đã nhận: " + domainString);
+
+            // c. Lọc các tên miền .edu
+            String[] domains = domainString.split(",");
+            List<String> eduDomains = new ArrayList<>();
+
+            for (String domain : domains) {
+                String cleanedDomain = domain.trim();
+
+                if (cleanedDomain.toLowerCase().endsWith(".edu")) {
+                    eduDomains.add(cleanedDomain);
+                }
+            }
+
+            // Định dạng kết quả
+            String result = String.join(", ", eduDomains);
+
+            System.out.println("Tên miền .edu: " + result);
+
+            // Gửi kết quả lên server
+            writer.write(result);
+            writer.newLine();
+            writer.flush();
+
+            System.out.println("Đã gửi kết quả lên server.");
+            System.out.println("Chương trình hoàn thành.");
+
+        } catch (java.net.SocketTimeoutException e) {
+            System.out.println("Lỗi: Server không phản hồi trong 5 giây.");
+        } catch (Exception e) {
+            System.out.println("Lỗi: " + e.getClass().getSimpleName());
+            System.out.println("Chi tiết: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
+
+------------------------
+TCP - Byte Stream
+------------------------
+Một chương trình server hỗ trợ kết nối qua giao thức TCP tại cổng 2206 (hỗ trợ thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu xây dựng chương trình client thực hiện kết nối tới server trên sử dụng luồng byte dữ liệu (InputStream/OutputStream) để trao đổi thông tin theo thứ tự:
+
+a. Gửi mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B16DCCN999;FF49DC02
+
+b. Nhận dữ liệu từ server là một chuỗi các giá trị số nguyên được phân tách nhau bởi ký tự ,
+
+Ví dụ: 1,3,9,19,33,20
+
+c. Thực hiện tìm giá trị khoảng cách nhỏ nhất của các phần tử nằm trong chuỗi và hai giá trị lớn nhất tạo nên khoảng cách đó. Gửi lên server chuỗi gồm "khoảng cách nhỏ nhất, số thứ nhất, số thứ hai".
+
+Ví dụ: 1,19,20
+
+d. Đóng kết nối và kết thúc
+------------------------
+
+package tcp_dbptit;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+public class tcp_bytestream {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242"; 
+        final int SERVER_PORT = 2206;
+
+        final String STUDENT_CODE = "B23DCCN194"; 
+        final String Q_CODE = "2OCIqX7Y";          
+
+        try (
+            Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+            InputStream inputStream = socket.getInputStream();
+            OutputStream outputStream = socket.getOutputStream()
+        ) {
+            // Giới hạn thời gian chờ phản hồi là 5 giây
+            socket.setSoTimeout(5000);
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            outputStream.write(request.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // b. Nhận chuỗi số nguyên từ server
+            byte[] buffer = new byte[1024];
+            int bytesRead = inputStream.read(buffer);
+
+            if (bytesRead == -1) {
+                System.out.println("Server không gửi dữ liệu.");
+                return;
+            }
+
+            String receivedData = new String(
+                buffer,
+                0,
+                bytesRead,
+                StandardCharsets.UTF_8
+            ).trim();
+
+            System.out.println("Đã nhận: " + receivedData);
+
+            String[] parts = receivedData.split(",");
+
+            if (parts.length < 2) {
+                System.out.println("Cần ít nhất hai số nguyên.");
+                return;
+            }
+
+            int[] numbers = new int[parts.length];
+
+            for (int i = 0; i < parts.length; i++) {
+                numbers[i] = Integer.parseInt(parts[i].trim());
+            }
+
+            // Sắp xếp để tìm khoảng cách nhỏ nhất
+            Arrays.sort(numbers);
+
+            long minimumDistance = Long.MAX_VALUE;
+            int firstNumber = 0;
+            int secondNumber = 0;
+
+            for (int i = 0; i < numbers.length - 1; i++) {
+                long distance = (long) numbers[i + 1] - numbers[i];
+
+                /*
+                 * Dùng <= để nếu có nhiều cặp cùng khoảng cách nhỏ nhất,
+                 * chương trình giữ lại cặp có giá trị lớn hơn vì mảng
+                 * đang được duyệt theo thứ tự tăng dần.
+                 */
+                if (distance <= minimumDistance) {
+                    minimumDistance = distance;
+                    firstNumber = numbers[i];
+                    secondNumber = numbers[i + 1];
+                }
+            }
+
+            // c. Gửi kết quả lên server
+            String result = minimumDistance
+                    + "," + firstNumber
+                    + "," + secondNumber;
+
+            outputStream.write(result.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+
+            System.out.println("Kết quả gửi lên server: " + result);
+
+            // d. Socket tự động đóng bởi try-with-resources
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (NumberFormatException e) {
+            System.out.println("Dữ liệu server gửi không đúng định dạng số nguyên.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+------------------------
+TCP - Byte Stream 2
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2206 (thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác tới server ở trên sử dụng các luồng byte (InputStream/OutputStream) để trao đổi thông tin theo thứ tự:
+
+a. Gửi mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B16DCCN999;2B3A6510
+
+b. Nhận dữ liệu từ server là một chuỗi các giá trị số nguyên được phân tách nhau bởi ký tự ,.
+
+Ví dụ: 1,3,9,19,33,20
+
+c. Tìm và gửi lên server giá trị lớn thứ hai cùng vị trí xuất hiện của nó trong chuỗi.Ví dụ: 20,5
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package tcp_dbptit;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+
+public class tcp_bytestream2 {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242"; 
+        final int SERVER_PORT = 2206;
+
+        final String STUDENT_CODE = "B23DCCN194"; 
+        final String Q_CODE = "2FOHgQdk";          
+
+        try (
+            Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+            InputStream inputStream = socket.getInputStream();
+            OutputStream outputStream = socket.getOutputStream()
+        ) {
+            // Thời gian chờ tối đa 5 giây
+            socket.setSoTimeout(5000);
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            outputStream.write(request.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // b. Nhận chuỗi số nguyên từ server
+            byte[] buffer = new byte[1024];
+            int bytesRead = inputStream.read(buffer);
+
+            if (bytesRead == -1) {
+                System.out.println("Server không gửi dữ liệu.");
+                return;
+            }
+
+            String receivedData = new String(
+                    buffer,
+                    0,
+                    bytesRead,
+                    StandardCharsets.UTF_8
+            ).trim();
+
+            System.out.println("Đã nhận: " + receivedData);
+
+            String[] parts = receivedData.split(",");
+
+            if (parts.length < 2) {
+                System.out.println("Dãy phải có ít nhất hai số.");
+                return;
+            }
+
+            int[] numbers = new int[parts.length];
+
+            for (int i = 0; i < parts.length; i++) {
+                numbers[i] = Integer.parseInt(parts[i].trim());
+            }
+
+            // c. Tìm giá trị lớn nhất và lớn thứ hai phân biệt
+            int largest = Integer.MIN_VALUE;
+            int secondLargest = Integer.MIN_VALUE;
+
+            for (int number : numbers) {
+                if (number > largest) {
+                    secondLargest = largest;
+                    largest = number;
+                } else if (number > secondLargest && number < largest) {
+                    secondLargest = number;
+                }
+            }
+
+            if (secondLargest == Integer.MIN_VALUE) {
+                System.out.println("Không tồn tại giá trị lớn thứ hai phân biệt.");
+                return;
+            }
+
+            // Tìm vị trí xuất hiện đầu tiên của giá trị lớn thứ hai
+            int position = -1;
+
+            for (int i = 0; i < numbers.length; i++) {
+                if (numbers[i] == secondLargest) {
+                    position = i;
+                    break;
+                }
+            }
+
+            // Gửi theo định dạng: giá trị,vị trí
+            String result = secondLargest + "," + position;
+
+            outputStream.write(result.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+
+            System.out.println("Đã gửi kết quả: " + result);
+
+            // d. Kết nối tự đóng nhờ try-with-resources
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (NumberFormatException e) {
+            System.out.println("Dữ liệu nhận được không đúng định dạng số nguyên.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+------------------------
+TCP - Character Stream 2
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2208 (hỗ trợ thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác với server sử dụng các luồng byte (BufferedWriter/BufferedReader) theo kịch bản sau:
+
+a. Gửi một chuỗi gồm mã sinh viên và mã câu hỏi với định dạng studentCode;qCode.
+
+Ví dụ: B15DCCN999;BAA62945
+
+b. Nhận một chuỗi ngẫu nhiên từ server
+
+Ví dụ: dgUOo ch2k22ldsOo
+
+c. Liệt kê các ký tự (là chữ hoặc số) xuất hiện nhiều hơn một lần trong chuỗi và số lần xuất hiện của chúng và gửi lên server
+
+Ví dụ: d:2,O:2,o:2,2:3,
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package tcp_dbptit;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class tcp_characterstream2 {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242"; // Thay nếu đề cho host khác
+        final int SERVER_PORT = 2208;
+
+        final String STUDENT_CODE = "B23DCCN194"; // Thay mã sinh viên
+        final String Q_CODE = "hiAuISiE";          // Thay mã câu hỏi
+
+        try (
+            Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(
+                    socket.getInputStream(),
+                    StandardCharsets.UTF_8
+                )
+            );
+
+            BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(
+                    socket.getOutputStream(),
+                    StandardCharsets.UTF_8
+                )
+            )
+        ) {
+            // Thời gian giao tiếp tối đa 5 giây
+            socket.setSoTimeout(5000);
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            writer.write(request);
+            writer.newLine();
+            writer.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // b. Nhận chuỗi từ server
+            String receivedData = reader.readLine();
+
+            if (receivedData == null) {
+                System.out.println("Server không gửi dữ liệu.");
+                return;
+            }
+
+            System.out.println("Đã nhận: " + receivedData);
+
+            // Đếm số lần xuất hiện của từng ký tự
+            Map<Character, Integer> frequencyMap = new LinkedHashMap<>();
+
+            for (char character : receivedData.toCharArray()) {
+                // Chỉ đếm ký tự là chữ hoặc số
+                if (Character.isLetterOrDigit(character)) {
+                    frequencyMap.put(
+                        character,
+                        frequencyMap.getOrDefault(character, 0) + 1
+                    );
+                }
+            }
+
+            // c. Lấy các ký tự xuất hiện nhiều hơn một lần
+            StringBuilder result = new StringBuilder();
+
+            for (Map.Entry<Character, Integer> entry
+                    : frequencyMap.entrySet()) {
+
+                if (entry.getValue() > 1) {
+                    result.append(entry.getKey())
+                          .append(":")
+                          .append(entry.getValue())
+                          .append(",");
+                }
+            }
+
+            // Gửi kết quả lên server
+            writer.write(result.toString());
+            writer.newLine();
+            writer.flush();
+
+            System.out.println("Đã gửi kết quả: " + result);
+
+            // d. Socket và các luồng tự động đóng
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+------------------------
+TCP - Data Stream
+------------------------
+Một chương trình máy chủ cho phép kết nối qua TCP tại cổng 2207 (hỗ trợ thời gian liên lạc tối đa cho mỗi yêu cầu là 5s), yêu cầu xây dựng chương trình (tạm gọi là client) thực hiện kết nối tới server tại cổng 2207, sử dụng luồng byte dữ liệu (DataInputStream/DataOutputStream) để trao đổi thông tin theo thứ tự:
+
+a. Gửi chuỗi là mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B15DCCN999;1D25ED92
+
+b. Nhận lần lượt hai số nguyên a và b từ server
+
+c. Thực hiện tính toán tổng, tích và gửi lần lượt từng giá trị theo đúng thứ tự trên lên server
+
+d. Đóng kết nối và kết thúc
+------------------------
+
+package tcp_dbptit;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+
+public class tcp_datastream {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242"; // Thay nếu host khác
+        final int SERVER_PORT = 2207;
+
+        final String STUDENT_CODE = "B23DCCN194"; // Thay mã sinh viên
+        final String Q_CODE = "sahV6Q9Y";          // Thay mã câu hỏi
+
+        try (
+            Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+            DataInputStream input = new DataInputStream(
+                socket.getInputStream()
+            );
+            DataOutputStream output = new DataOutputStream(
+                socket.getOutputStream()
+            )
+        ) {
+            // Giới hạn thời gian chờ là 5 giây
+            socket.setSoTimeout(5000);
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            output.writeUTF(request);
+            output.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // b. Nhận lần lượt hai số nguyên a và b
+            int a = input.readInt();
+            int b = input.readInt();
+
+            System.out.println("a = " + a);
+            System.out.println("b = " + b);
+
+            // c. Tính tổng và tích
+            int sum = a + b;
+            int product = a * b;
+
+            // Gửi lần lượt tổng trước, tích sau
+            output.writeInt(sum);
+            output.writeInt(product);
+            output.flush();
+
+            System.out.println("Tổng: " + sum);
+            System.out.println("Tích: " + product);
+            System.out.println("Đã gửi lần lượt: tổng, tích");
+
+            // d. Socket và các luồng tự động đóng
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+------------------------
+TCP - Data Stream 2
+------------------------
+Mật mã caesar, còn gọi là mật mã dịch chuyển, để giải mã thì mỗi ký tự nhận được sẽ được thay thế bằng một ký tự cách nó một đoạn s.
+
+Ví dụ: với s = 3 thì ký tự A sẽ được thay thế bằng ký tự D
+
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2207 (hỗ trợ thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng chương trình client tương tác với server trên, sử dụng các luồng byte (DataInputStream/DataOutputStream) để trao đổi thông tin theo thứ tự:
+
+a. Gửi một chuỗi gồm mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B15DCCN999;D68C93F7
+
+b. Nhận lần lượt chuỗi đã bị mã hóa caesar và giá trị dịch chuyển s nguyên
+
+c. Thực hiện giải mã ra thông điệp ban đầu và gửi lên Server
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package tcp_dbptit;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+
+public class tcp_datastream2 {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242";
+        final int SERVER_PORT = 2207;
+
+        final String STUDENT_CODE = "B23DCCN194"; // Thay mã sinh viên
+        final String Q_CODE = "M1MU3esX";          // Thay mã câu hỏi
+
+        try (
+            Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+            DataInputStream input =
+                new DataInputStream(socket.getInputStream());
+            DataOutputStream output =
+                new DataOutputStream(socket.getOutputStream())
+        ) {
+            // Giới hạn thời gian giao tiếp là 5 giây
+            socket.setSoTimeout(5000);
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            output.writeUTF(request);
+            output.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // b. Nhận chuỗi đã mã hóa và độ dịch chuyển s
+            String encryptedMessage = input.readUTF();
+            int shift = input.readInt();
+
+            System.out.println("Chuỗi đã mã hóa: " + encryptedMessage);
+            System.out.println("Độ dịch chuyển s: " + shift);
+
+            // c. Giải mã Caesar bằng cách dịch ngược s vị trí
+            String decodedMessage = decryptCaesar(
+                encryptedMessage,
+                shift
+            );
+
+            System.out.println("Chuỗi sau khi giải mã: " + decodedMessage);
+
+            // Gửi chuỗi đã giải mã lên server
+            output.writeUTF(decodedMessage);
+            output.flush();
+
+            System.out.println("Đã gửi kết quả lên server.");
+
+            // d. Socket và các luồng tự động đóng
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Giải mã Caesar bằng cách dịch mỗi chữ cái ngược lại shift vị trí.
+     * Chữ số, khoảng trắng và ký tự đặc biệt được giữ nguyên.
+     */
+    public static String decryptCaesar(String encryptedMessage, int shift) {
+        StringBuilder result = new StringBuilder();
+
+        // Chuẩn hóa shift về khoảng từ 0 đến 25
+        shift = ((shift % 26) + 26) % 26;
+
+        for (char character : encryptedMessage.toCharArray()) {
+            if (character >= 'A' && character <= 'Z') {
+                char decodedCharacter = (char) (
+                    'A' + (character - 'A' - shift + 26) % 26
+                );
+
+                result.append(decodedCharacter);
+            } else if (character >= 'a' && character <= 'z') {
+                char decodedCharacter = (char) (
+                    'a' + (character - 'a' - shift + 26) % 26
+                );
+
+                result.append(decodedCharacter);
+            } else {
+                // Giữ nguyên số và các ký tự đặc biệt
+                result.append(character);
+            }
+        }
+
+        return result.toString();
+    }
+}
+
+------------------------
+TCP - Object Stream
+------------------------
+Thông tin sản phẩm vì một lý do nào đó đã bị sửa đổi thành không đúng, cụ thể:
+
+a) Tên sản phẩm bị đổi ngược từ đầu tiên và từ cuối cùng, ví dụ: “lenovo thinkpad T520” bị chuyển thành “T520 thinkpad lenovo”
+
+b) Số lượng sản phẩm cũng bị đảo ngược giá trị, ví dụ từ 9981 thành 1899
+
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2209 (hỗ trợ thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác với server sử dụng các luồng đối tượng (ObjectInputStream / ObjectOutputStream) để gửi/nhận và sửa các thông tin bị sai của sản phẩm. Chi tiết dưới đây:
+
+a) Đối tượng trao đổi là thể hiện của lớp Laptop được mô tả như sau
+
+Tên đầy đủ của lớp: TCP.Laptop
+Các thuộc tính: id int, code String, name String, quantity int
+Hàm khởi tạo đầy đủ các thuộc tính được liệt kê ở trên
+Trường dữ liệu: private static final long serialVersionUID = 20150711L;
+b) Tương tác với server theo kịch bản
+
+1) Gửi đối tượng là chuỗi chứa mã sinh viên và mã câu hỏi với định dạng studentCode;qCode.
+
+Ví dụ: B15DCCN999;5AD2B818
+
+2) Nhận một đối tượng là thể hiện của lớp Laptop từ server
+
+3) Sửa các thông tin sai của sản phẩm về tên và số lượng.
+
+Gửi đối tượng vừa được sửa sai lên server
+
+4) Đóng socket và kết thúc chương trình.
+------------------------
+
+// File 1: Laptop.java trong package TCP (TCP.Laptop)
+package TCP;
+
+import java.io.Serializable;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+
+public class Laptop implements Serializable {
+    private static final long serialVersionUID = 20150711L;
+
+    private int id;
+    private String code;
+    private String name;
+    private int quantity;
+
+    public Laptop(int id, String code, String name, int quantity) {
+        this.id = id;
+        this.code = code;
+        this.name = name;
+        this.quantity = quantity;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
+
+    @Override
+    public String toString() {
+        return "Laptop{" +
+                "id=" + id +
+                ", code='" + code + '\'' +
+                ", name='" + name + '\'' +
+                ", quantity=" + quantity +
+                '}';
+    }
+}
+//File 2: main
+package tcp_dbptit;
+
+import TCP.Laptop;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+
+
+public class tcp_objectstream {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242";
+        final int SERVER_PORT = 2209;
+
+        final String STUDENT_CODE = "B23DCCN194"; // Thay mã sinh viên
+        final String Q_CODE = "9XVm0f7k";          // Thay mã câu hỏi
+
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT)) {
+            socket.setSoTimeout(5000);
+
+            // Tạo luồng gửi trước để tránh treo kết nối
+            ObjectOutputStream output =
+                    new ObjectOutputStream(socket.getOutputStream());
+            output.flush();
+
+            ObjectInputStream input =
+                    new ObjectInputStream(socket.getInputStream());
+
+            // 1. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            output.writeObject(request);
+            output.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // 2. Nhận đối tượng Laptop
+            Laptop laptop = (Laptop) input.readObject();
+
+            System.out.println("Trước khi sửa:");
+            System.out.println(laptop);
+
+            // 3. Sửa tên và số lượng
+            laptop.setName(
+                    swapFirstAndLastWords(laptop.getName())
+            );
+
+            laptop.setQuantity(
+                    reverseNumber(laptop.getQuantity())
+            );
+
+            System.out.println("Sau khi sửa:");
+            System.out.println(laptop);
+
+            // Gửi đối tượng đã sửa lên server
+            output.writeObject(laptop);
+            output.flush();
+
+            System.out.println("Đã gửi kết quả lên server.");
+
+            input.close();
+            output.close();
+
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (ClassNotFoundException e) {
+            System.out.println("Không tìm thấy lớp Laptop.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Đổi vị trí từ đầu tiên và từ cuối cùng
+    public static String swapFirstAndLastWords(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return name;
+        }
+
+        String[] words = name.trim().split("\\s+");
+
+        if (words.length < 2) {
+            return name.trim();
+        }
+
+        String temp = words[0];
+        words[0] = words[words.length - 1];
+        words[words.length - 1] = temp;
+
+        return String.join(" ", words);
+    }
+
+    // Đảo ngược các chữ số của số lượng
+    public static int reverseNumber(int number) {
+        int reversed = 0;
+
+        while (number > 0) {
+            reversed = reversed * 10 + number % 10;
+            number /= 10;
+        }
+
+        return reversed;
+    }
+}
+
+
+------------------------
+TCP - Object Stream 2
+------------------------
+Thông tin khách hàng cần thay đổi định dạng lại cho phù hợp với khu vực, cụ thể:
+
+a. Tên khách hàng cần được chuẩn hóa theo định dạng mới.
+
+Ví dụ: nguyen van hai duong -> DUONG, Nguyen Van Hai
+
+b. Ngày sinh của khách hàng hiện đang ở dạng mm-dd-yyyy, cần được chuyển thành định dạng dd/mm/yyyy.
+
+Ví dụ: 10-11-2012 -> 11/10/2012
+
+c. Tài khoản khách hàng là các chữ cái in thường được sinh tự động từ họ tên khách hàng.
+
+Ví dụ: nguyen van hai duong -> nvhduong
+
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2209 (hỗ trợ thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác với server sử dụng các luồng đối tượng (ObjectInputStream / ObjectOutputStream) thực hiện gửi/nhận đối tượng khách hàng và chuẩn hóa. Cụ thể:
+
+a. Đối tượng trao đổi là thể hiện của lớp Customer được mô tả như sau
+
+Tên đầy đủ của lớp: TCP.Customer
+Các thuộc tính: id int, code String, name String, dayOfBirth String, userName String
+Hàm khởi tạo đầy đủ các thuộc tính được liệt kê ở trên
+Trường dữ liệu: private static final long serialVersionUID = 20170711L;
+b. Tương tác với server theo kịch bản dưới đây:
+
+1) Gửi đối tượng là một chuỗi gồm mã sinh viên và mã câu hỏi ở định dạng studentCode;qCode.
+
+Ví dụ: B15DCCN999;F2DA54F3
+
+2) Nhận một đối tượng là thể hiện của lớp Customer từ server với các thông tin đã được thiết lập
+
+3) Thay đổi định dạng theo các yêu cầu ở trên và gán vào các thuộc tính tương ứng.
+
+Gửi đối tượng đã được sửa đổi lên server
+
+4) Đóng socket và kết thúc chương trình.
+------------------------
+
+//File 1: TCP.Customer
+
+package TCP;
+
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.util.Locale;
+
+public class Customer implements Serializable {
+    private static final long serialVersionUID = 20170711L;
+
+    private int id;
+    private String code;
+    private String name;
+    private String dayOfBirth;
+    private String userName;
+
+    public Customer(
+            int id,
+            String code,
+            String name,
+            String dayOfBirth,
+            String userName
+    ) {
+        this.id = id;
+        this.code = code;
+        this.name = name;
+        this.dayOfBirth = dayOfBirth;
+        this.userName = userName;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDayOfBirth() {
+        return dayOfBirth;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setDayOfBirth(String dayOfBirth) {
+        this.dayOfBirth = dayOfBirth;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    @Override
+    public String toString() {
+        return "Customer{" +
+                "id=" + id +
+                ", code='" + code + '\'' +
+                ", name='" + name + '\'' +
+                ", dayOfBirth='" + dayOfBirth + '\'' +
+                ", userName='" + userName + '\'' +
+                '}';
+    }
+}
+
+//File2: main
+
+package tcp_dbptit;
+
+import TCP.Customer;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.util.Locale;
+
+public class tcp_objectstream2 {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242";
+        final int SERVER_PORT = 2209;
+
+        final String STUDENT_CODE = "B23DCCN194"; // Thay mã sinh viên
+        final String Q_CODE = "F04Z3OqE";          // Thay mã câu hỏi
+
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT)) {
+            socket.setSoTimeout(5000);
+
+            // Tạo ObjectOutputStream trước để tránh treo kết nối
+            ObjectOutputStream output =
+                    new ObjectOutputStream(socket.getOutputStream());
+            output.flush();
+
+            ObjectInputStream input =
+                    new ObjectInputStream(socket.getInputStream());
+
+            // 1. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            output.writeObject(request);
+            output.flush();
+
+            System.out.println("Đã gửi: " + request);
+
+            // 2. Nhận đối tượng Customer
+            Customer customer = (Customer) input.readObject();
+
+            System.out.println("Trước khi chuẩn hóa:");
+            System.out.println(customer);
+
+            /*
+             * Lưu tên ban đầu vì username phải được tạo
+             * theo thứ tự họ tên ban đầu.
+             */
+            String originalName = customer.getName();
+
+            // 3. Chuẩn hóa các thuộc tính
+            customer.setName(formatName(originalName));
+            customer.setDayOfBirth(
+                    formatDate(customer.getDayOfBirth())
+            );
+            customer.setUserName(
+                    createUserName(originalName)
+            );
+
+            System.out.println("Sau khi chuẩn hóa:");
+            System.out.println(customer);
+
+            // Gửi đối tượng đã sửa lên server
+            output.writeObject(customer);
+            output.flush();
+
+            System.out.println("Đã gửi Customer lên server.");
+
+            input.close();
+            output.close();
+
+        } catch (SocketTimeoutException e) {
+            System.out.println("Quá thời gian giao tiếp 5 giây.");
+        } catch (ClassNotFoundException e) {
+            System.out.println("Không tìm thấy lớp Customer.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Chuẩn hóa:
+     * nguyen van hai duong -> DUONG, Nguyen Van Hai
+     */
+    public static String formatName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return name;
+        }
+
+        String[] words = name.trim().split("\\s+");
+        int lastIndex = words.length - 1;
+
+        // Viết hoa toàn bộ tên cuối
+        String lastName = words[lastIndex].toUpperCase(Locale.ROOT);
+
+        if (words.length == 1) {
+            return lastName;
+        }
+
+        StringBuilder remainingName = new StringBuilder();
+
+        // Chuẩn hóa các từ đứng trước
+        for (int i = 0; i < lastIndex; i++) {
+            if (i > 0) {
+                remainingName.append(" ");
+            }
+
+            remainingName.append(capitalize(words[i]));
+        }
+
+        return lastName + ", " + remainingName;
+    }
+
+    /**
+     * Viết hoa chữ cái đầu, các chữ còn lại viết thường.
+     */
+    public static String capitalize(String word) {
+        word = word.toLowerCase(Locale.ROOT);
+
+        if (word.isEmpty()) {
+            return word;
+        }
+
+        return Character.toUpperCase(word.charAt(0))
+                + word.substring(1);
+    }
+
+    /**
+     * Chuyển mm-dd-yyyy thành dd/mm/yyyy.
+     * Ví dụ: 10-11-2012 -> 11/10/2012
+     */
+    public static String formatDate(String date) {
+        if (date == null || date.trim().isEmpty()) {
+            return date;
+        }
+
+        String[] parts = date.trim().split("-");
+
+        if (parts.length != 3) {
+            return date;
+        }
+
+        String month = parts[0];
+        String day = parts[1];
+        String year = parts[2];
+
+        return day + "/" + month + "/" + year;
+    }
+
+    /**
+     * Tạo username:
+     * nguyen van hai duong -> nvhduong
+     */
+    public static String createUserName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "";
+        }
+
+        String[] words = name
+                .trim()
+                .toLowerCase(Locale.ROOT)
+                .split("\\s+");
+
+        if (words.length == 1) {
+            return words[0];
+        }
+
+        StringBuilder userName = new StringBuilder();
+
+        // Lấy chữ cái đầu của các từ, trừ từ cuối
+        for (int i = 0; i < words.length - 1; i++) {
+            userName.append(words[i].charAt(0));
+        }
+
+        // Ghép toàn bộ từ cuối
+        userName.append(words[words.length - 1]);
+
+        return userName.toString();
+    }
+}
+
+
+------------------------
+TCP - GZIP Stream
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2210 (thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác tới server ở trên sử dụng GZIPInputStream/GZIPOutputStream để trao đổi thông tin (mỗi thông điệp là một dòng text UTF-8 kết thúc bằng ‘\n’ và toàn bộ dữ liệu truyền/nhận đều được nén GZIP), theo thứ tự sau:
+
+a. Gửi mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B16DCCN999;GZLEN01
+
+b. Nhận dữ liệu từ server, sau khi giải nén là một chuỗi văn bản.
+
+c. Thực hiện đảo ngược chuỗi nhận được, sau đó mã hóa chuỗi đã đảo ngược sang định dạng Base64. Gửi kết quả lên server theo khuôn dạng: <reversed_string>|<base64_string> Ví dụ: Nhận 123 → Đảo ngược thành 321 → Base64 của 321 là MzIx → Gửi lên: 321|MzIx
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package tcp_dbptit;
+
+import java.io.ByteArrayOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+public class tcp_gzipstream {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242";
+        final int SERVER_PORT = 2210;
+
+        final String STUDENT_CODE = "B23DCCN194";
+        final String Q_CODE = "QXiTAtuI";
+
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT)) {
+            socket.setSoTimeout(5000);
+
+            /*
+             * Một GZIPOutputStream duy nhất cho toàn bộ kết nối.
+             * syncFlush = true để mỗi dòng được gửi ngay.
+             */
+            GZIPOutputStream gzipOutput = new GZIPOutputStream(
+                    socket.getOutputStream(),
+                    true
+            );
+
+            // a. Gửi request
+            String request = STUDENT_CODE + ";" + Q_CODE;
+            writeGzipLine(gzipOutput, request);
+
+            System.out.println("Da gui request: " + request);
+
+            // Tạo luồng giải nén dữ liệu nhận
+            GZIPInputStream gzipInput = new GZIPInputStream(
+                    socket.getInputStream()
+            );
+
+            /*
+             * Không dùng BufferedReader.readLine().
+             * Đọc chính xác đến ký tự xuống dòng.
+             */
+            String receivedMessage = readGzipLine(gzipInput);
+
+            if (receivedMessage == null) {
+                System.out.println("Server khong gui du lieu.");
+                return;
+            }
+
+            System.out.println("Da nhan: " + receivedMessage);
+
+            // c. Đảo ngược chuỗi
+            String reversedString = new StringBuilder(receivedMessage)
+                    .reverse()
+                    .toString();
+
+            // Base64 của chuỗi đã đảo ngược
+            String base64String = Base64.getEncoder().encodeToString(
+                    reversedString.getBytes(StandardCharsets.UTF_8)
+            );
+
+            String result = reversedString + "|" + base64String;
+
+            // Gửi trên cùng GZIPOutputStream ban đầu
+            writeGzipLine(gzipOutput, result);
+
+            System.out.println("Chuoi dao nguoc: " + reversedString);
+            System.out.println("Base64: " + base64String);
+            System.out.println("Da gui ket qua: " + result);
+
+            // Chỉ hoàn thành GZIP sau khi gửi kết quả cuối cùng
+            gzipOutput.finish();
+            gzipOutput.flush();
+
+        } catch (SocketTimeoutException e) {
+            System.out.println("Qua thoi gian giao tiep 5 giay.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Gửi một dòng UTF-8 trên GZIP stream đang tồn tại.
+     */
+    public static void writeGzipLine(
+            GZIPOutputStream gzipOutput,
+            String message
+    ) throws Exception {
+        byte[] data = (message + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+
+        gzipOutput.write(data);
+        gzipOutput.flush();
+    }
+
+    /**
+     * Đọc từng byte sau giải nén cho tới ký tự '\n'.
+     */
+    public static String readGzipLine(
+            GZIPInputStream gzipInput
+    ) throws Exception {
+        ByteArrayOutputStream buffer =
+                new ByteArrayOutputStream();
+
+        while (true) {
+            int value = gzipInput.read();
+
+            if (value == -1) {
+                if (buffer.size() == 0) {
+                    return null;
+                }
+
+                break;
+            }
+
+            if (value == '\n') {
+                break;
+            }
+
+            // Bỏ ký tự '\r' nếu server sử dụng CRLF
+            if (value != '\r') {
+                buffer.write(value);
+            }
+        }
+
+        return buffer.toString(StandardCharsets.UTF_8);
+    }
+}
+
+------------------------
+TCP - GZIP Stream 2
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2210 (thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác tới server ở trên sử dụng GZIPInputStream/GZIPOutputStream để trao đổi thông tin (mỗi thông điệp là một dòng text UTF-8 kết thúc bằng ‘\n’ và toàn bộ dữ liệu truyền/nhận đều được nén GZIP), theo thứ tự sau:
+
+a. Gửi mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B16DCCN999;GZCRC_LEN03
+
+b. Nhận dữ liệu từ server, sau khi giải nén là một chuỗi văn bản.
+
+c. Sắp xếp các ký tự trong chuỗi nhận được theo thứ tự từ điển (tăng dần theo mã ASCII). Sau đó gửi chuỗi kết quả đã sắp xếp lên server.
+
+Ví dụ: Nhận về dbca1 thì gửi lên server 1abcd
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package tcp_dbptit;
+
+import java.io.ByteArrayOutputStream;
+import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+public class tcp_gzipstream2 {
+    public static void main(String[] args) {
+        final String SERVER_HOST = "36.50.135.242";
+        final int SERVER_PORT = 2210;
+
+        final String STUDENT_CODE = "B23DCCN194"; // Thay mã sinh viên
+        final String Q_CODE = "RbAdmY7D";       // Thay mã câu hỏi
+
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT)) {
+            socket.setSoTimeout(5000);
+
+            /*
+             * Dùng một GZIPOutputStream cho toàn bộ quá trình gửi.
+             * syncFlush = true để server nhận được từng dòng ngay.
+             */
+            GZIPOutputStream gzipOutput = new GZIPOutputStream(
+                    socket.getOutputStream(),
+                    true
+            );
+
+            // a. Gửi mã sinh viên và mã câu hỏi
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            writeGzipLine(gzipOutput, request);
+
+            System.out.println("Da gui: " + request);
+
+            // Tạo luồng nhận và giải nén dữ liệu
+            GZIPInputStream gzipInput = new GZIPInputStream(
+                    socket.getInputStream()
+            );
+
+            // b. Đọc chính xác một dòng
+            String receivedMessage = readGzipLine(gzipInput);
+
+            if (receivedMessage == null) {
+                System.out.println("Server khong gui du lieu.");
+                return;
+            }
+
+            System.out.println("Da nhan: " + receivedMessage);
+
+            // c. Sắp xếp tăng dần theo mã ký tự
+            char[] characters = receivedMessage.toCharArray();
+            Arrays.sort(characters);
+
+            String sortedString = new String(characters);
+
+            System.out.println("Sau khi sap xep: " + sortedString);
+
+            // Gửi kết quả trên cùng GZIP stream
+            writeGzipLine(gzipOutput, sortedString);
+
+            System.out.println("Da gui ket qua.");
+
+            // Hoàn thành GZIP sau khi gửi thông điệp cuối cùng
+            gzipOutput.finish();
+            gzipOutput.flush();
+
+            // d. Socket tự động đóng
+        } catch (SocketTimeoutException e) {
+            System.out.println("Qua thoi gian giao tiep 5 giay.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Gửi một dòng UTF-8 qua GZIP stream.
+     */
+    public static void writeGzipLine(
+            GZIPOutputStream gzipOutput,
+            String message
+    ) throws Exception {
+        byte[] data = (message + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+
+        gzipOutput.write(data);
+        gzipOutput.flush();
+    }
+
+    /**
+     * Đọc từng byte đã giải nén cho đến ký tự xuống dòng.
+     */
+    public static String readGzipLine(
+            GZIPInputStream gzipInput
+    ) throws Exception {
+        ByteArrayOutputStream buffer =
+                new ByteArrayOutputStream();
+
+        while (true) {
+            int value = gzipInput.read();
+
+            if (value == -1) {
+                if (buffer.size() == 0) {
+                    return null;
+                }
+
+                break;
+            }
+
+            if (value == '\n') {
+                break;
+            }
+
+            // Bỏ '\r' nếu server sử dụng kết thúc dòng CRLF
+            if (value != '\r') {
+                buffer.write(value);
+            }
+        }
+
+        return buffer.toString(StandardCharsets.UTF_8);
+    }
+}
+
+------------------------
+TCP - NIO Stream
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2211 (thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác tới server ở trên sử dụng SocketChannel và ByteBuffer để trao đổi thông tin theo giao thức frame: 4 byte độ dài (int32) + payload (UTF-8).
+
+Lưu ý: server & client đều phải đọc đủ dữ liệu bằng vòng lặp (readFully) do server luôn chia nhỏ dữ liệu khi gửi. Trình tự trao đổi như sau:
+
+a. Gửi mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B16DCCN999;fkdRJYuX
+
+b. Nhận dữ liệu từ server gồm đúng 3 frame liên tiếp. Payload của mỗi frame là một phần của cùng một HTTP request, client phải nối 3 payload theo đúng thứ tự để thu được chuỗi HTTP request hoàn chỉnh (các dòng phân tách bởi \r\n và kết thúc bằng \r\n\r\n).
+
+c. Từ chuỗi HTTP request hoàn chỉnh, trích xuất và gửi lại lên server theo định dạng METHOD;PATH;HOST trong đó PATH luôn bao gồm query-string.
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package TCP;
+
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+
+public class TCPClient {
+    private static final String SERVER_HOST = "36.50.135.242";
+    private static final int SERVER_PORT = 2211;
+
+    // Giới hạn kích thước frame để tránh dữ liệu lỗi
+    private static final int MAX_FRAME_SIZE = 1024 * 1024;
+
+    public static void main(String[] args) {
+        final String studentCode = "B23DCCN111"; // Thay mã sinh viên
+        final String qCode = "OrDL86yn";          // Thay mã câu hỏi
+
+        try (SocketChannel channel = SocketChannel.open()) {
+            channel.configureBlocking(true);
+
+            channel.connect(
+                    new InetSocketAddress(
+                            SERVER_HOST,
+                            SERVER_PORT
+                    )
+            );
+
+            // a. Gửi studentCode;qCode dưới dạng một frame
+            String requestCode = studentCode + ";" + qCode;
+
+            writeFrame(channel, requestCode);
+
+            System.out.println("Da gui: " + requestCode);
+
+            // b. Nhận đúng 3 frame và nối theo thứ tự
+            StringBuilder httpRequestBuilder = new StringBuilder();
+
+            for (int i = 0; i < 3; i++) {
+                String payload = readFrame(channel);
+
+                httpRequestBuilder.append(payload);
+
+                System.out.println(
+                        "Da nhan frame " + (i + 1)
+                                + ", do dai payload: "
+                                + payload.getBytes(
+                                        StandardCharsets.UTF_8
+                                ).length
+                );
+            }
+
+            String httpRequest = httpRequestBuilder.toString();
+
+            System.out.println("HTTP request hoan chinh:");
+            System.out.println(httpRequest);
+
+            // c. Trích xuất METHOD, PATH và HOST
+            String result = extractHttpInformation(httpRequest);
+
+            // Gửi kết quả dưới dạng frame
+            writeFrame(channel, result);
+
+            System.out.println("Da gui ket qua: " + result);
+
+            // d. SocketChannel tự đóng
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Gửi một frame:
+     * 4 byte độ dài payload + payload UTF-8.
+     */
+    public static void writeFrame(
+            SocketChannel channel,
+            String message
+    ) throws Exception {
+        byte[] payload = message.getBytes(StandardCharsets.UTF_8);
+
+        ByteBuffer frameBuffer = ByteBuffer.allocate(
+                Integer.BYTES + payload.length
+        );
+
+        // ByteBuffer mặc định sử dụng BIG_ENDIAN
+        frameBuffer.putInt(payload.length);
+        frameBuffer.put(payload);
+        frameBuffer.flip();
+
+        writeFully(channel, frameBuffer);
+    }
+
+    /**
+     * Nhận một frame:
+     * đọc đủ 4 byte độ dài, sau đó đọc đủ payload.
+     */
+    public static String readFrame(
+            SocketChannel channel
+    ) throws Exception {
+        // Đọc đúng 4 byte biểu diễn độ dài
+        ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.BYTES);
+
+        readFully(channel, lengthBuffer);
+
+        lengthBuffer.flip();
+
+        int payloadLength = lengthBuffer.getInt();
+
+        if (payloadLength < 0 || payloadLength > MAX_FRAME_SIZE) {
+            throw new IllegalArgumentException(
+                    "Do dai frame khong hop le: " + payloadLength
+            );
+        }
+
+        // Đọc đủ số byte payload
+        ByteBuffer payloadBuffer = ByteBuffer.allocate(payloadLength);
+
+        readFully(channel, payloadBuffer);
+
+        payloadBuffer.flip();
+
+        return StandardCharsets.UTF_8.decode(payloadBuffer).toString();
+    }
+
+    /**
+     * Đọc cho đến khi ByteBuffer không còn byte trống.
+     * Không được giả định một lần read() sẽ nhận đủ dữ liệu.
+     */
+    public static void readFully(
+            SocketChannel channel,
+            ByteBuffer buffer
+    ) throws Exception {
+        while (buffer.hasRemaining()) {
+            int bytesRead = channel.read(buffer);
+
+            if (bytesRead == -1) {
+                throw new IllegalStateException(
+                        "Server dong ket noi khi chua gui du du lieu."
+                );
+            }
+        }
+    }
+
+    /**
+     * Ghi cho đến khi toàn bộ ByteBuffer được gửi.
+     */
+    public static void writeFully(
+            SocketChannel channel,
+            ByteBuffer buffer
+    ) throws Exception {
+        while (buffer.hasRemaining()) {
+            channel.write(buffer);
+        }
+    }
+
+    /**
+     * Trích xuất HTTP request thành METHOD;PATH;HOST.
+     */
+    public static String extractHttpInformation(String httpRequest) {
+        String[] lines = httpRequest.split("\\r\\n");
+
+        if (lines.length == 0 || lines[0].isBlank()) {
+            throw new IllegalArgumentException(
+                    "HTTP request khong hop le."
+            );
+        }
+
+        /*
+         * Request line có dạng:
+         * GET /products?id=10 HTTP/1.1
+         */
+        String[] requestLineParts = lines[0].trim().split("\\s+");
+
+        if (requestLineParts.length < 3) {
+            throw new IllegalArgumentException(
+                    "HTTP request line khong hop le: " + lines[0]
+            );
+        }
+
+        String method = requestLineParts[0];
+        String path = requestLineParts[1];
+        String host = null;
+
+        // Tìm header Host, không phân biệt chữ hoa/chữ thường
+        for (int i = 1; i < lines.length; i++) {
+            String line = lines[i];
+
+            int colonPosition = line.indexOf(':');
+
+            if (colonPosition == -1) {
+                continue;
+            }
+
+            String headerName = line
+                    .substring(0, colonPosition)
+                    .trim();
+
+            if (headerName.equalsIgnoreCase("Host")) {
+                host = line
+                        .substring(colonPosition + 1)
+                        .trim();
+
+                break;
+            }
+        }
+
+        if (host == null || host.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Khong tim thay Host header."
+            );
+        }
+
+        return method + ";" + path + ";" + host;
+    }
+}
+
+------------------------
+TCP - NIO Stream 2
+------------------------
+Một chương trình server cho phép kết nối qua giao thức TCP tại cổng 2211 (thời gian giao tiếp tối đa cho mỗi yêu cầu là 5s). Yêu cầu là xây dựng một chương trình client tương tác tới server ở trên sử dụng SocketChannel và ByteBuffer để trao đổi thông tin theo giao thức frame: 4 byte độ dài (int32) + payload (UTF-8).
+
+Lưu ý: server & client đều phải đọc đủ dữ liệu bằng vòng lặp (readFully) do server luôn chia nhỏ dữ liệu khi gửi. Trình tự trao đổi như sau:
+
+a. Gửi mã sinh viên và mã câu hỏi theo định dạng studentCode;qCode.
+
+Ví dụ: B16DCCN999;ucpQ9zAh
+
+b. Nhận dữ liệu từ server gồm đúng 2 frame liên tiếp. Payload của mỗi frame là một phần của cùng một chuỗi JSON đơn giản trên một dòng (không xuống dòng). Client phải nối 2 payload theo đúng thứ tự để thu được chuỗi JSON hoàn chỉnh.
+
+c. Trích xuất các trường event, user, ok và gửi lại lên server theo định dạng event=<event>;user=<user>;ok=<0|1> (true=1, false=0).
+
+d. Đóng kết nối và kết thúc chương trình.
+------------------------
+
+package TCP;
+
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class TCPClient {
+    private static final String SERVER_HOST = "36.50.135.242";
+    private static final int SERVER_PORT = 2211;
+
+    private static final int MAX_FRAME_SIZE = 1024 * 1024;
+
+    public static void main(String[] args) {
+        final String STUDENT_CODE = "B23DCCN111"; // Thay mã sinh viên
+        final String Q_CODE = "TUPvncha";          // Thay mã câu hỏi
+
+        try (SocketChannel channel = SocketChannel.open()) {
+            channel.configureBlocking(true);
+
+            channel.connect(
+                    new InetSocketAddress(
+                            SERVER_HOST,
+                            SERVER_PORT
+                    )
+            );
+
+            // a. Gửi studentCode;qCode dưới dạng một frame
+            String request = STUDENT_CODE + ";" + Q_CODE;
+
+            writeFrame(channel, request);
+
+            System.out.println("Da gui: " + request);
+
+            // b. Nhận đúng 2 frame và nối payload theo thứ tự
+            StringBuilder jsonBuilder = new StringBuilder();
+
+            for (int i = 0; i < 2; i++) {
+                String payload = readFrame(channel);
+
+                jsonBuilder.append(payload);
+
+                System.out.println(
+                        "Frame " + (i + 1) + ": " + payload
+                );
+            }
+
+            String json = jsonBuilder.toString();
+
+            System.out.println("JSON hoan chinh: " + json);
+
+            // c. Trích xuất các trường
+            String event = extractStringField(json, "event");
+            String user = extractStringField(json, "user");
+            boolean ok = extractBooleanField(json, "ok");
+
+            String result = "event=" + event
+                    + ";user=" + user
+                    + ";ok=" + (ok ? "1" : "0");
+
+            // Gửi kết quả dưới dạng một frame
+            writeFrame(channel, result);
+
+            System.out.println("Da gui ket qua: " + result);
+
+            // d. SocketChannel tự động đóng
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Gửi frame: 4 byte độ dài + payload UTF-8.
+     */
+    public static void writeFrame(
+            SocketChannel channel,
+            String message
+    ) throws Exception {
+        byte[] payload = message.getBytes(StandardCharsets.UTF_8);
+
+        ByteBuffer frame = ByteBuffer.allocate(
+                Integer.BYTES + payload.length
+        );
+
+        frame.putInt(payload.length);
+        frame.put(payload);
+        frame.flip();
+
+        writeFully(channel, frame);
+    }
+
+    /**
+     * Nhận một frame hoàn chỉnh.
+     */
+    public static String readFrame(
+            SocketChannel channel
+    ) throws Exception {
+        // Đọc đủ 4 byte độ dài
+        ByteBuffer lengthBuffer = ByteBuffer.allocate(Integer.BYTES);
+
+        readFully(channel, lengthBuffer);
+
+        lengthBuffer.flip();
+
+        int payloadLength = lengthBuffer.getInt();
+
+        if (payloadLength < 0 || payloadLength > MAX_FRAME_SIZE) {
+            throw new IllegalArgumentException(
+                    "Do dai frame khong hop le: " + payloadLength
+            );
+        }
+
+        // Đọc đủ payload
+        ByteBuffer payloadBuffer = ByteBuffer.allocate(payloadLength);
+
+        readFully(channel, payloadBuffer);
+
+        payloadBuffer.flip();
+
+        return StandardCharsets.UTF_8
+                .decode(payloadBuffer)
+                .toString();
+    }
+
+    /**
+     * Đọc đến khi ByteBuffer đầy.
+     */
+    public static void readFully(
+            SocketChannel channel,
+            ByteBuffer buffer
+    ) throws Exception {
+        while (buffer.hasRemaining()) {
+            int bytesRead = channel.read(buffer);
+
+            if (bytesRead == -1) {
+                throw new IllegalStateException(
+                        "Server dong ket noi khi chua gui du frame."
+                );
+            }
+        }
+    }
+
+    /**
+     * Ghi đến khi ByteBuffer được gửi hết.
+     */
+    public static void writeFully(
+            SocketChannel channel,
+            ByteBuffer buffer
+    ) throws Exception {
+        while (buffer.hasRemaining()) {
+            channel.write(buffer);
+        }
+    }
+
+    /**
+     * Trích xuất trường chuỗi từ JSON.
+     * Ví dụ: "event": "login"
+     */
+    public static String extractStringField(
+            String json,
+            String fieldName
+    ) {
+        String regex = "\""
+                + Pattern.quote(fieldName)
+                + "\"\\s*:\\s*\"([^\"]*)\"";
+
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(json);
+
+        if (!matcher.find()) {
+            throw new IllegalArgumentException(
+                    "Khong tim thay truong: " + fieldName
+            );
+        }
+
+        return matcher.group(1);
+    }
+
+    /**
+     * Trích xuất trường boolean từ JSON.
+     * Chấp nhận true hoặc false, không phân biệt hoa thường.
+     */
+    public static boolean extractBooleanField(
+            String json,
+            String fieldName
+    ) {
+        String regex = "\""
+                + Pattern.quote(fieldName)
+                + "\"\\s*:\\s*(true|false)";
+
+        Pattern pattern = Pattern.compile(
+                regex,
+                Pattern.CASE_INSENSITIVE
+        );
+
+        Matcher matcher = pattern.matcher(json);
+
+        if (!matcher.find()) {
+            throw new IllegalArgumentException(
+                    "Khong tim thay truong boolean: " + fieldName
+            );
+        }
+
+        return Boolean.parseBoolean(matcher.group(1));
+    }
+}       
+
+------------------------
